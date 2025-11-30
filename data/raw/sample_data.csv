@@ -1,0 +1,4 @@
+date,beds_occupied,icu_occupied,oxygen_consumed_liters
+2024-01-01,120,10,450
+2024-01-02,130,11,460
+2024-01-03,128,12,455
