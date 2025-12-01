@@ -5,77 +5,105 @@ import io
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 
-# -----------------------------------------
-# 1. PAGE SETTINGS
-# -----------------------------------------
-st.set_page_config(page_title="Smart Hospital Predictor", layout="wide")
+# -------------------------------------------------------
+# 1. PAGE SETTINGS (adds icon + wide screen)
+# -------------------------------------------------------
+st.set_page_config(
+    page_title="Smart Hospital Predictor",
+    layout="wide"
+)
 
-# -----------------------------------------
-# 2. TITLE + DESCRIPTION
-# -----------------------------------------
-st.title("🏥 Smart Hospital Resource Predictor")
-st.write("A simple dashboard to monitor and predict hospital resource usage such as beds, ICU occupancy, and oxygen consumption.")
+# -------------------------------------------------------
+# 2. BEAUTIFUL HEADER
+# -------------------------------------------------------
+st.markdown("""
+    <h1 style='text-align:center; color:#2E86C1;'>
+        🏥 Smart Hospital Resource Predictor
+    </h1>
+    <p style='text-align:center; font-size:18px; color:#1B4F72;'>
+        Monitor hospital resources and predict future requirements 
+    </p>
+""", unsafe_allow_html=True)
 
 st.divider()
 
-# -----------------------------------------
-# 3. SIDEBAR NAVIGATION
-# -----------------------------------------
-st.sidebar.title("📌 Navigation")
-page = st.sidebar.selectbox(
-    "Choose a Page",
+# -------------------------------------------------------
+# 3. SIDEBAR (Navigation Menu)
+# -------------------------------------------------------
+st.sidebar.markdown("### 📌 Navigation")
+page = st.sidebar.radio(
+    "Go to",
     ["Dashboard", "Predict Tomorrow", "Download Report"]
 )
 
-# -----------------------------------------
-# 4. LOAD CSV FILE
-# -----------------------------------------
+# -------------------------------------------------------
+# 4. LOAD CSV DATA
+# -------------------------------------------------------
 csv_path = "data/processed/processed.csv"
 
 try:
     df = pd.read_csv(csv_path)
     df['date'] = pd.to_datetime(df['date'])
 except:
-    st.error("❌ Could not load processed.csv. Make sure the file exists.")
+    st.error("❌ Could not load processed.csv — is the file in the right folder?")
     st.stop()
 
-# -----------------------------------------
-# SHARED DATA
-# -----------------------------------------
+# -------------------------------------------------------
+# COMMON VALUES
+# -------------------------------------------------------
 latest_beds = df["beds_occupied"].iloc[-1]
 latest_icu = df["icu_occupied"].iloc[-1]
 latest_oxy = df["oxygen_consumed_liters"].iloc[-1]
 
-# -----------------------------------------
+# -------------------------------------------------------
 # PAGE 1: DASHBOARD
-# -----------------------------------------
+# -------------------------------------------------------
 if page == "Dashboard":
 
-    st.subheader("📊 Live Hospital Summary")
+    st.markdown("### 📊 Live Hospital Summary")
+
+    # colored cards style
+    st.markdown("""
+        <style>
+            .card {
+                padding:20px;
+                border-radius:15px;
+                color:white;
+                text-align:center;
+                font-size:22px;
+                margin:10px;
+            }
+        </style>
+    """, unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("🛏 Beds Occupied", latest_beds)
-    col2.metric("🏥 ICU Occupied", latest_icu)
-    col3.metric("🧪 Oxygen Used (L)", latest_oxy)
+
+    with col1:
+        st.markdown(f"<div class='card' style='background:#3498DB;'>🛏 Beds: {latest_beds}</div>", unsafe_allow_html=True)
+
+    with col2:
+        st.markdown(f"<div class='card' style='background:#A569BD;'>🏥 ICU: {latest_icu}</div>", unsafe_allow_html=True)
+
+    with col3:
+        st.markdown(f"<div class='card' style='background:#E67E22;'>🧪 Oxygen: {latest_oxy} L</div>", unsafe_allow_html=True)
 
     st.divider()
 
-    st.subheader("📈 Usage Trends Over Time")
+    st.markdown("### 📈 Usage Trends Over Time")
 
-    # Prepare line chart
     chart_df = df.set_index("date")[["beds_occupied", "icu_occupied", "oxygen_consumed_liters"]]
     st.line_chart(chart_df)
 
-# -----------------------------------------
+# -------------------------------------------------------
 # PAGE 2: PREDICT TOMORROW
-# -----------------------------------------
+# -------------------------------------------------------
 elif page == "Predict Tomorrow":
 
-    st.subheader("🔮 Predict Tomorrow's Usage")
+    st.markdown("### 🔮 Predict Tomorrow's Usage")
 
-    # Prepare training data
     df["day"] = range(len(df))
     X = df[["day"]]
+
     model_beds = LinearRegression().fit(X, df["beds_occupied"])
     model_icu = LinearRegression().fit(X, df["icu_occupied"])
     model_oxy = LinearRegression().fit(X, df["oxygen_consumed_liters"])
@@ -86,19 +114,18 @@ elif page == "Predict Tomorrow":
     pred_icu = int(model_icu.predict([[next_day]])[0])
     pred_oxy = int(model_oxy.predict([[next_day]])[0])
 
-    if st.button("Predict"):
-        st.success(f"🛏 Beds Needed: {pred_beds}")
-        st.success(f"🏥 ICU Needed: {pred_icu}")
-        st.success(f"🧪 Oxygen Needed: {pred_oxy} liters")
+    if st.button("🔍 Predict Tomorrow", type="primary"):
+        st.success(f"🛏 Beds Needed: **{pred_beds}**")
+        st.success(f"🏥 ICU Needed: **{pred_icu}**")
+        st.success(f"🧪 Oxygen Needed: **{pred_oxy} liters**")
 
-# -----------------------------------------
+# -------------------------------------------------------
 # PAGE 3: PDF REPORT
-# -----------------------------------------
+# -------------------------------------------------------
 elif page == "Download Report":
+    
+    st.markdown("### 📄 Download Hospital Report")
 
-    st.subheader("📄 Download Hospital Report")
-
-    # Generate PDF in memory
     buffer = io.BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=letter)
 
@@ -109,17 +136,18 @@ elif page == "Download Report":
     pdf.drawString(50, 710, f"Latest Beds Occupied: {latest_beds}")
     pdf.drawString(50, 690, f"Latest ICU Occupied: {latest_icu}")
     pdf.drawString(50, 670, f"Oxygen Used (L): {latest_oxy}")
-
-    pdf.drawString(50, 640, "Generated by Smart Hospital Predictor")
+    pdf.drawString(50, 650, "Generated by Smart Hospital Predictor")
 
     pdf.save()
     buffer.seek(0)
 
     st.download_button(
-        label="📥 Download PDF Report",
-        data=buffer,
+        "📥 Download PDF Report",
+        buffer,
         file_name="hospital_report.pdf",
         mime="application/pdf"
     )
+
+
 
 
